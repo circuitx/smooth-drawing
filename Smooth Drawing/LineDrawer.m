@@ -68,6 +68,9 @@ typedef struct _LineVertex {
   CGPoint prevG;
   CGPoint prevI;
   float overdraw;
+  
+  GLuint _vertexBuffer;
+  GLuint _indexBuffer;
 
   CCRenderTexture *renderTexture;
   BOOL finishingLine;
@@ -108,6 +111,7 @@ typedef struct _LineVertex {
 
     UILongPressGestureRecognizer *longPressGestureRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
     [self addGestureRecognizer:longPressGestureRecognizer];
+    [self setupVBOs];
   }
   return self;
 }
@@ -131,6 +135,16 @@ typedef struct _LineVertex {
   point.pos = newPoint;
   point.width = size;
   [points addObject:point];
+}
+
+// Set up vector buffer objects so that the GPU is utilized
+- (void)setupVBOs {
+
+    glGenBuffers(1, &_vertexBuffer);
+
+    glGenBuffers(1, &_indexBuffer);
+
+
 }
 
 #pragma mark - Drawing
@@ -261,9 +275,36 @@ typedef struct _LineVertex {
     angle += anglePerSegment;
   }
 
-  glVertexAttribPointer(kCCVertexAttrib_Position, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), &vertices[0].pos);
-  glVertexAttribPointer(kCCVertexAttrib_Color, 4, GL_FLOAT, GL_FALSE, sizeof(LineVertex), &vertices[0].color);
-  glDrawArrays(GL_TRIANGLES, 0, numberOfSegments * 9);
+  NSUInteger count = numberOfSegments * 9;
+
+  // Render VBO
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBuffer);
+  glEnableVertexAttribArray(kCCVertexAttrib_Position);
+  glEnableVertexAttribArray(kCCVertexAttrib_Color);
+    
+  glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertex)*count, vertices, GL_STATIC_DRAW);
+    
+  //NSLog(@"size of line vertex struct %lu float %lu glfloat %lu glubyte %lu",sizeof(LineVertex),sizeof(float),sizeof(GL_FLOAT),sizeof(GLubyte));
+    
+  GLushort *indices1 = calloc(sizeof(GLushort), count);
+  for (int i = 0; i < count; i++)
+  {
+       indices1[i] = i;
+  }
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer);
+    
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(count), indices1, GL_STATIC_DRAW);
+    
+    
+  glVertexAttribPointer(kCCVertexAttrib_Position, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), 0);
+  glVertexAttribPointer(kCCVertexAttrib_Color, 4, GL_FLOAT, GL_FALSE, sizeof(LineVertex), (GLvoid*) (sizeof(float) * 3));
+    
+    
+  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_SHORT, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  free(indices1);
 
   free(vertices);
 }
@@ -305,13 +346,34 @@ typedef struct _LineVertex {
     vertices[i * 18 + 17].color = fadeOutColor;
   }
 
-  glVertexAttribPointer(kCCVertexAttrib_Position, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), &vertices[0].pos);
-  glVertexAttribPointer(kCCVertexAttrib_Color, 4, GL_FLOAT, GL_FALSE, sizeof(LineVertex), &vertices[0].color);
+  // Render VBO
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBuffer);
+  glEnableVertexAttribArray(kCCVertexAttrib_Position);
+  glEnableVertexAttribArray(kCCVertexAttrib_Color);
 
+  glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertex)*count, vertices, GL_STATIC_DRAW);
+
+  //NSLog(@"size of line vertex struct %lu float %lu glfloat %lu glubyte %lu",sizeof(LineVertex),sizeof(float),sizeof(GL_FLOAT),sizeof(GLubyte));
+
+  GLushort *indices1 = calloc(sizeof(GLushort), count);
+  for (int i = 0; i < count; i++)
+  {
+      indices1[i] = i;
+  }
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer);
     
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*(count), indices1, GL_STATIC_DRAW);
+
+
+  glVertexAttribPointer(kCCVertexAttrib_Position, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), 0);
+  glVertexAttribPointer(kCCVertexAttrib_Color, 4, GL_FLOAT, GL_FALSE, sizeof(LineVertex), (GLvoid*) (sizeof(float) * 3));
+
+
   glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-  glDrawArrays(GL_TRIANGLES, 0, (GLsizei)count);
+  glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_SHORT, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  free(indices1);
 
   for (unsigned int i = 0; i < [circlesPoints count] / 2;   ++i) {
     LinePoint *prevPoint = [circlesPoints objectAtIndex:i * 2];
